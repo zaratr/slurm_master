@@ -2,6 +2,14 @@
 
 This repo builds a local Docker Desktop lab that approximates the environment HPC Engineering: RHEL-family Linux, Slurm as the open-source scheduler analog for LSF/SGE/RTDA-style grids, shared project/scratch paths, scheduler-visible EDA licenses, mock Cadence/Synopsys/Siemens jobs, accounting, and monitoring.
 
+Traditional HPC side:
+You are running Slurm, slurmctld, slurmd, slurmdbd, Munge auth, MariaDB accounting, partitions, node visibility, job submission, and license-aware scheduling. That shows you understand the older infrastructure model that engineering teams already depend on.
+
+Modern platform side:
+You are packaging the stack into one Rocky Linux container image, deploying it through Kubernetes, using Services, Deployments, StatefulSets, PVCs, ConfigMaps, Secrets, and namespace isolation. That shows you can move legacy scheduler infrastructure onto a cloud-native substrate without pretending Kubernetes replaces every HPC concern.
+
+Distributed AI side:
+The same worker image includes OpenMPI, Python, TensorFlow, and mpi4py. When you submit a Slurm job that runs mpirun and TensorFlow inside the cluster, you are proving that AI workloads can run through the same scheduling path as traditional batch workloads.
 
 ## Quick Start
 
