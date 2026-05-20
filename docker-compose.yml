@@ -63,10 +63,13 @@ services:
     container_name: microchip-compute1
     hostname: compute1
     command: ["slurmd"]
+    privileged: true
+    cgroup: host
     depends_on:
       slurmctld:
         condition: service_started
     volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
       - munge_key:/munge:ro
       - ./config/slurm:/config/slurm:ro
       - home:/home
@@ -79,10 +82,13 @@ services:
     container_name: microchip-compute2
     hostname: compute2
     command: ["slurmd"]
+    privileged: true
+    cgroup: host
     depends_on:
       slurmctld:
         condition: service_started
     volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
       - munge_key:/munge:ro
       - ./config/slurm:/config/slurm:ro
       - home:/home
