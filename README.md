@@ -1,8 +1,7 @@
-# Microchip-Style Slurm HPC Lab
+# Slurm Style HPC Lab
 
-This repo builds a local Docker Desktop lab that approximates the environment implied by the Microchip `Engineer II - Systems (HPC Engineer)` posting: RHEL-family Linux, Slurm as the open-source scheduler analog for LSF/SGE/RTDA-style grids, shared project/scratch paths, scheduler-visible EDA licenses, mock Cadence/Synopsys/Siemens jobs, accounting, and monitoring.
+This repo builds a local Docker Desktop lab that approximates the environment HPC Engineering: RHEL-family Linux, Slurm as the open-source scheduler analog for LSF/SGE/RTDA-style grids, shared project/scratch paths, scheduler-visible EDA licenses, mock Cadence/Synopsys/Siemens jobs, accounting, and monitoring.
 
-This does not claim Microchip uses Slurm. Slurm is the practical training substitute for understanding HPC grid operations, queueing, accounting, utilization, and EDA workload support.
 
 ## Quick Start
 
@@ -25,7 +24,7 @@ eda-license-status
 Prometheus is available at `http://localhost:9090`.
 Grafana is available at `http://localhost:3000` with `admin` / `admin`.
 
-## Interview Practice Flow
+## How To use Flow
 
 Run these from the login container:
 
