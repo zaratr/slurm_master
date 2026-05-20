@@ -3,6 +3,23 @@ set -euo pipefail
 
 role="${1:-login}"
 
+wait_for_tcp() {
+  local host="$1"
+  local port="$2"
+  local description="$3"
+  local timeout="${4:-180}"
+  local start
+  start="$(date +%s)"
+
+  until timeout 2 bash -c "</dev/tcp/${host}/${port}" >/dev/null 2>&1; do
+    if (( "$(date +%s)" - start > timeout )); then
+      echo "Timed out waiting for ${description} at ${host}:${port}" >&2
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 prepare_runtime() {
   mkdir -p /run/munge /run/slurm /var/log/munge /var/log/slurm /var/spool/slurm/ctld /var/spool/slurm/d /logs/jobs /scratch/eda-licenses
   chown -R munge:munge /run/munge /var/log/munge
@@ -55,16 +72,17 @@ case "$role" in
     ;;
   slurmctld)
     prepare_runtime
-    sleep 4
+    wait_for_tcp slurmdbd 6819 slurmdbd 240
     exec slurmctld -D -vvv
     ;;
   slurmd)
     prepare_runtime
-    sleep 8
+    wait_for_tcp slurmctld 6817 slurmctld 240
     exec slurmd -D -vvv
     ;;
   login)
     prepare_runtime
+    wait_for_tcp slurmctld 6817 slurmctld 240
     ssh-keygen -A
     /usr/sbin/sshd
     printf 'Microchip-style Slurm lab login node ready. Use: docker compose exec -u hpcuser login bash\n'
@@ -72,6 +90,7 @@ case "$role" in
     ;;
   metrics)
     prepare_runtime
+    wait_for_tcp slurmctld 6817 slurmctld 240
     exec /usr/local/bin/hpc-metrics
     ;;
   *)

@@ -5,6 +5,23 @@ run_login() {
   docker compose exec -T -u hpcuser login bash -lc "$*"
 }
 
+dump_slurm_debug() {
+  echo "== docker compose ps ==" >&2
+  docker compose ps >&2 || true
+  echo "== sinfo ==" >&2
+  run_login "sinfo -N -l" >&2 || true
+  echo "== nodes ==" >&2
+  run_login "scontrol show nodes" >&2 || true
+  echo "== slurmctld logs ==" >&2
+  docker compose logs --no-color slurmctld >&2 || true
+  echo "== slurmdbd logs ==" >&2
+  docker compose logs --no-color slurmdbd >&2 || true
+  echo "== compute1 logs ==" >&2
+  docker compose logs --no-color compute1 >&2 || true
+  echo "== compute2 logs ==" >&2
+  docker compose logs --no-color compute2 >&2 || true
+}
+
 retry() {
   local description="$1"
   local max_attempts="$2"
@@ -33,6 +50,9 @@ wait_for() {
   until eval "$command"; do
     if (( "$(date +%s)" - start > timeout )); then
       echo "Timed out waiting for: ${description}" >&2
+      if [[ "$description" == Slurm* ]]; then
+        dump_slurm_debug
+      fi
       return 1
     fi
     sleep 3
@@ -63,11 +83,12 @@ wait_for_job_state() {
   done
 }
 
+docker compose down -v --remove-orphans
 retry "Docker Compose build" 3 20 docker compose build
 docker compose up -d
 
 wait_for "login container" "docker compose exec -T -u hpcuser login true" 120
-wait_for "Slurm idle nodes" "run_login 'sinfo -h -o \"%t\"' | grep -q idle" 180
+wait_for "Slurm idle nodes" "run_login 'sinfo -h -N -o \"%t\"' | awk 'BEGIN { idle=0 } /idle/ { idle++ } END { exit idle >= 2 ? 0 : 1 }'" 300
 
 run_login "sinfo"
 run_login "scontrol show licenses | grep -q 'LicenseName=cadence'"

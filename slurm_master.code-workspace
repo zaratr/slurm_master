@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../hpc_lab_kubernetes"
+		}
+	],
+	"settings": {}
+}
