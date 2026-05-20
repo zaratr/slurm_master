@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import subprocess
+
+
+def run_count(cmd):
+    try:
+        out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+        return len([line for line in out.splitlines() if line.strip()])
+    except Exception:
+        return 0
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != "/metrics":
+            self.send_response(404)
+            self.end_headers()
+            return
+        running = run_count(["squeue", "-h", "-t", "R"])
+        pending = run_count(["squeue", "-h", "-t", "PD"])
+        try:
+            out = subprocess.check_output(["sacct", "-n", "-X", "-o", "State"], text=True, stderr=subprocess.DEVNULL)
+            completed = sum(1 for line in out.splitlines() if line.strip().startswith("COMPLETED"))
+        except Exception:
+            completed = 0
+        try:
+            out = subprocess.check_output(["sinfo", "-h", "-N", "-o", "%N"], text=True, stderr=subprocess.DEVNULL)
+            nodes = len(set(line.strip() for line in out.splitlines() if line.strip()))
+        except Exception:
+            nodes = 0
+        body = "\n".join([
+            "# HELP slurm_lab_jobs_running Running Slurm jobs in the lab.",
+            "# TYPE slurm_lab_jobs_running gauge",
+            f"slurm_lab_jobs_running {running}",
+            "# HELP slurm_lab_jobs_pending Pending Slurm jobs in the lab.",
+            "# TYPE slurm_lab_jobs_pending gauge",
+            f"slurm_lab_jobs_pending {pending}",
+            "# HELP slurm_lab_jobs_completed Completed Slurm jobs visible to accounting.",
+            "# TYPE slurm_lab_jobs_completed counter",
+            f"slurm_lab_jobs_completed {completed}",
+            "# HELP slurm_lab_nodes_known Slurm nodes known to sinfo.",
+            "# TYPE slurm_lab_nodes_known gauge",
+            f"slurm_lab_nodes_known {nodes}",
+            "",
+        ])
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; version=0.0.4")
+        self.end_headers()
+        self.wfile.write(body.encode("utf-8"))
+
+    def log_message(self, *_):
+        return
+
+
+HTTPServer(("0.0.0.0", 9100), Handler).serve_forever()

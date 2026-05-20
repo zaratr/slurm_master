@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+partition="eda"
+name="rtda-job"
+cpus=1
+mem="512M"
+license=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --queue) partition="$2"; shift 2 ;;
+    --name) name="$2"; shift 2 ;;
+    --cores) cpus="$2"; shift 2 ;;
+    --mem) mem="$2"; shift 2 ;;
+    --license) license="$2"; shift 2 ;;
+    --)
+      shift; break ;;
+    -*)
+      echo "rtda-submit mock does not support option: $1" >&2
+      exit 2 ;;
+    *)
+      break ;;
+  esac
+done
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage: rtda-submit --queue eda --name job --cores 1 --mem 512M --license cadence:1 command..." >&2
+  exit 2
+fi
+
+echo "RTDA/Accelerator-style mock submit: policy=license-aware throughput queue=${partition}" >&2
+args=(--partition "$partition" --job-name "$name" --cpus-per-task "$cpus" --mem "$mem" --output "/logs/jobs/slurm-%j.out" --wrap "$*")
+if [[ -n "$license" ]]; then
+  args=(--licenses "$license" "${args[@]}")
+fi
+
+sbatch "${args[@]}"

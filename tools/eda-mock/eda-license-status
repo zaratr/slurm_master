@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Configured Slurm license pools:"
+scontrol show licenses 2>/dev/null || true
+echo
+echo "Jobs requesting licenses:"
+squeue -h -O jobid,name,user,state,licenses,reason 2>/dev/null || true

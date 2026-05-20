@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+tool="${1:?tool name required}"
+shift
+
+duration=10
+mem_mb=64
+case_name="default"
+fail=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --duration)
+      duration="$2"; shift 2 ;;
+    --mem-mb)
+      mem_mb="$2"; shift 2 ;;
+    --case)
+      case_name="$2"; shift 2 ;;
+    --fail)
+      fail=1; shift ;;
+    -h|--help)
+      cat <<EOF
+Usage: ${tool}-run [--case NAME] [--duration SECONDS] [--mem-mb MB] [--fail]
+
+Mock ${tool} EDA workload. Submit through Slurm with --licenses=${tool}:1
+to model license-constrained EDA scheduling.
+EOF
+      exit 0 ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 2 ;;
+  esac
+done
+
+job_id="${SLURM_JOB_ID:-interactive}"
+submit_host="${SLURM_SUBMIT_HOST:-$(hostname)}"
+log_dir="/logs/jobs/${job_id}"
+mkdir -p "$log_dir"
+log_file="${log_dir}/${tool}-${case_name}.jsonl"
+
+emit() {
+  python3 - "$log_file" "$tool" "$case_name" "$job_id" "$submit_host" "$1" "$2" <<'PY'
+import json, sys, time
+path, tool, case, job_id, submit_host, event, value = sys.argv[1:]
+record = {
+  "ts": int(time.time()),
+  "tool": tool,
+  "case": case,
+  "job_id": job_id,
+  "submit_host": submit_host,
+  "host": __import__("socket").gethostname(),
+  "event": event,
+  "value": value,
+}
+with open(path, "a", encoding="utf-8") as fh:
+  fh.write(json.dumps(record) + "\n")
+print(json.dumps(record))
+PY
+}
+
+emit start "duration=${duration},mem_mb=${mem_mb}"
+python3 - "$duration" "$mem_mb" <<'PY'
+import sys, time, hashlib
+duration = int(sys.argv[1])
+mem_mb = max(1, min(int(sys.argv[2]), 512))
+payload = bytearray(mem_mb * 1024 * 1024)
+end = time.time() + duration
+i = 0
+while time.time() < end:
+    i += 1
+    payload[i % len(payload)] = i % 255
+    hashlib.sha256(payload[:4096]).hexdigest()
+    time.sleep(0.05)
+print(f"iterations={i}")
+PY
+
+if [[ "$fail" -eq 1 ]]; then
+  emit fail "requested_failure"
+  exit 42
+fi
+
+emit complete "ok"

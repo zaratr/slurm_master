@@ -1,0 +1,169 @@
+services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: microchip-mariadb
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpass
+      MARIADB_DATABASE: slurm_acct_db
+      MARIADB_USER: slurm
+      MARIADB_PASSWORD: slurm
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  munge-key:
+    build:
+      context: .
+      dockerfile: docker/slurm/Dockerfile
+    image: microchip-slurm-lab:rocky9
+    command: ["init-munge-key"]
+    volumes:
+      - munge_key:/munge
+
+  slurmdbd:
+    image: microchip-slurm-lab:rocky9
+    container_name: microchip-slurmdbd
+    command: ["slurmdbd"]
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      munge-key:
+        condition: service_completed_successfully
+    volumes:
+      - munge_key:/munge:ro
+      - ./config/slurm:/config/slurm:ro
+      - slurm_state:/var/spool/slurm
+      - logs:/logs
+
+  slurmctld:
+    image: microchip-slurm-lab:rocky9
+    container_name: microchip-slurmctld
+    hostname: slurmctld
+    command: ["slurmctld"]
+    depends_on:
+      slurmdbd:
+        condition: service_started
+    ports:
+      - "6817:6817"
+    volumes:
+      - munge_key:/munge:ro
+      - ./config/slurm:/config/slurm:ro
+      - slurm_state:/var/spool/slurm
+      - home:/home
+      - projects:/projects
+      - scratch:/scratch
+      - logs:/logs
+
+  compute1:
+    image: microchip-slurm-lab:rocky9
+    container_name: microchip-compute1
+    hostname: compute1
+    command: ["slurmd"]
+    depends_on:
+      slurmctld:
+        condition: service_started
+    volumes:
+      - munge_key:/munge:ro
+      - ./config/slurm:/config/slurm:ro
+      - home:/home
+      - projects:/projects
+      - scratch:/scratch
+      - logs:/logs
+
+  compute2:
+    image: microchip-slurm-lab:rocky9
+    container_name: microchip-compute2
+    hostname: compute2
+    command: ["slurmd"]
+    depends_on:
+      slurmctld:
+        condition: service_started
+    volumes:
+      - munge_key:/munge:ro
+      - ./config/slurm:/config/slurm:ro
+      - home:/home
+      - projects:/projects
+      - scratch:/scratch
+      - logs:/logs
+
+  login:
+    image: microchip-slurm-lab:rocky9
+    container_name: microchip-login
+    hostname: login
+    command: ["login"]
+    depends_on:
+      slurmctld:
+        condition: service_started
+      compute1:
+        condition: service_started
+      compute2:
+        condition: service_started
+    ports:
+      - "2222:22"
+    volumes:
+      - munge_key:/munge:ro
+      - ./config/slurm:/config/slurm:ro
+      - ./tools/eda-mock:/tools/eda-mock:ro
+      - ./tools/scheduler-wrappers:/tools/scheduler-wrappers:ro
+      - ./jobs:/projects/eda/jobs:ro
+      - ./docs:/projects/eda/docs:ro
+      - home:/home
+      - projects:/projects
+      - scratch:/scratch
+      - logs:/logs
+
+  monitoring:
+    image: microchip-slurm-lab:rocky9
+    container_name: microchip-monitoring
+    hostname: monitoring
+    command: ["metrics"]
+    depends_on:
+      slurmctld:
+        condition: service_started
+    ports:
+      - "9100:9100"
+    volumes:
+      - munge_key:/munge:ro
+      - ./config/slurm:/config/slurm:ro
+      - logs:/logs
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: microchip-prometheus
+    depends_on:
+      monitoring:
+        condition: service_started
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: microchip-grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  home:
+  projects:
+  scratch:
+  logs:
+  munge_key:
+  mariadb_data:
+  slurm_state:
+  prometheus_data:
+  grafana_data:

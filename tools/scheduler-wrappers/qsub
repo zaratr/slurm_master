@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+partition="eda"
+name="sge-job"
+cpus=1
+mem="512M"
+license=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -q) partition="$2"; shift 2 ;;
+    -N) name="$2"; shift 2 ;;
+    -pe) shift 2; cpus="$1"; shift ;;
+    -l)
+      if [[ "$2" =~ h_vmem=([0-9]+)([MmGg]?) ]]; then mem="${BASH_REMATCH[1]}${BASH_REMATCH[2]:-M}"; fi
+      if [[ "$2" =~ license=([^,[:space:]]+) ]]; then license="${BASH_REMATCH[1]}"; fi
+      shift 2 ;;
+    --)
+      shift; break ;;
+    -*)
+      echo "qsub wrapper does not support option: $1" >&2
+      exit 2 ;;
+    *)
+      break ;;
+  esac
+done
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage: qsub [-q queue] [-N name] [-pe smp cores] [-l h_vmem=512M] [-l license=feature:count] command..." >&2
+  exit 2
+fi
+
+args=(--partition "$partition" --job-name "$name" --cpus-per-task "$cpus" --mem "$mem" --output "/logs/jobs/slurm-%j.out" --wrap "$*")
+if [[ -n "$license" ]]; then
+  args=(--licenses "$license" "${args[@]}")
+fi
+
+sbatch "${args[@]}"
