@@ -5,6 +5,24 @@ run_login() {
   docker compose exec -T -u hpcuser login bash -lc "$*"
 }
 
+retry() {
+  local description="$1"
+  local max_attempts="$2"
+  local sleep_seconds="$3"
+  shift 3
+
+  local attempt=1
+  until "$@"; do
+    if (( attempt >= max_attempts )); then
+      echo "${description} failed after ${attempt} attempts." >&2
+      return 1
+    fi
+    echo "${description} failed; retrying in ${sleep_seconds}s (${attempt}/${max_attempts})..." >&2
+    sleep "$sleep_seconds"
+    attempt=$((attempt + 1))
+  done
+}
+
 wait_for() {
   local description="$1"
   local command="$2"
@@ -45,7 +63,7 @@ wait_for_job_state() {
   done
 }
 
-docker compose build
+retry "Docker Compose build" 3 20 docker compose build
 docker compose up -d
 
 wait_for "login container" "docker compose exec -T -u hpcuser login true" 120

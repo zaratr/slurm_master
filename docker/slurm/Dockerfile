@@ -1,7 +1,15 @@
 FROM rockylinux:9
 
-RUN dnf -y install epel-release && \
-    dnf -y install \
+RUN printf '%s\n' \
+      'retries=5' \
+      'timeout=60' \
+      'minrate=1000' \
+      'max_parallel_downloads=3' \
+      'fastestmirror=True' \
+      'skip_if_unavailable=True' \
+      >> /etc/dnf/dnf.conf && \
+    dnf -y --setopt=tsflags=nodocs --setopt=install_weak_deps=False install epel-release && \
+    dnf -y --setopt=tsflags=nodocs --setopt=install_weak_deps=False install \
       bash-completion \
       bind-utils \
       hostname \
@@ -28,7 +36,8 @@ RUN dnf -y install epel-release && \
       time \
       vim-minimal \
       which && \
-    dnf clean all
+    dnf clean all && \
+    rm -rf /var/cache/dnf/*
 
 RUN getent group slurm >/dev/null || groupadd -r slurm && \
     id slurm >/dev/null 2>&1 || useradd -r -g slurm -d /var/lib/slurm -s /sbin/nologin slurm && \
